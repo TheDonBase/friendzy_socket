@@ -48,11 +48,11 @@ const removeConnection = async (uuid) => {
   Logger.log("Deleted Connection", `${response}`)
 }
 
-const authenticate = (user, ws) => {
-  const uuid = generateUUID();
-  clientMap.set(uuid, { user, ws });
-  addConnection(uuid, user);
-  Logger.log("New Connection", `A new User: ${user} connected with UUID: ${uuid}`);
+const authenticate = async (token, ws) => {
+  const uuid = await getUuid(jwtToken);
+  clientMap.set(uuid, { device, ws });
+  addConnection(uuid, device);
+  Logger.log("New Connection", `A new User: ${device} connected with UUID: ${uuid}`);
 }
 
 function getUser(user) {
@@ -77,7 +77,7 @@ async function handleMessage(ws, data) {
       await sendMessageToClient(recipient, JSON.stringify({ from: 'Server', message: messageData.message }));
   } else if (messageData.type === "authenticate") {
       // Handle authentication messages
-      await authenticate(messageData.user, ws);
+      await authenticate(messageData.jwtToken, ws);
   } else if(messageData.type === "user_date_new") {
     if(messageData.user !== null || messageData.friend !== null) {
       const user = messageData.user;
