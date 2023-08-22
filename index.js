@@ -25,8 +25,9 @@ const broadcast = (message) => {
 };
 
 const broadcastToClient = (client, message) => {
-  if(client.readyState === WebSocket.OPEN) {
-    client.send(message);
+  Logger.log("broadcastToClient", `Client: ${client.key} and message: ${message}`);
+  if(client.ws.readyState === WebSocket.OPEN) {
+    client.ws.send(message);
   }
 };
 
@@ -54,6 +55,50 @@ const authenticate = (user, ws) => {
   Logger.log("New Connection", `A new User: ${user} connected with UUID: ${uuid}`);
 }
 
+function getUser(user) {
+  let foundUser = null;
+
+  clientMap.forEach((value, key) => {
+    if (value.user === user) {
+      foundUser = { key, ...value };
+      Logger.log("Found User", `Found the user: ${foundUser.key}`);
+    }
+  });
+
+  return foundUser;
+}
+
+async function handleMessage(ws, data) {
+  const messageData = JSON.parse(data);
+
+  if (messageData.to && clientMap.has(messageData.to)) {
+      // Handle direct messages
+      const recipient = clientMap.get(messageData.to);
+      await sendMessageToClient(recipient, JSON.stringify({ from: 'Server', message: messageData.message }));
+  } else if (messageData.type === "authenticate") {
+      // Handle authentication messages
+      await authenticate(messageData.user, ws);
+  } else if(messageData.type === "user_date_new") {
+    if(messageData.user !== null || messageData.friend !== null) {
+      const user = messageData.user;
+      const friend = messageData.friend
+      const checkUser = await getUser(friend);
+      const jsonData = {
+        "notification_type": "user_date_new",
+        "sender": user,
+        "message": "Has sent you a new date!"
+      };
+      const encodedData = JSON.stringify(jsonData);
+      await broadcastToClient(checkUser, encodedData);
+    }
+  } else if(messageData.type === "friendship_add_new") {
+    
+  } else {
+      // Handle other message types (e.g., broadcasting)
+      broadcast(data);
+  }
+}
+
 wss.on('connection', function connection(ws) {
     clients.push(ws);
     Logger.log("New Connection", `A new client connected anonymously`);
@@ -64,18 +109,8 @@ wss.on('connection', function connection(ws) {
     ws.on('error', console.error);
   
     ws.on('message', function message(data) {
-      Logger.log("Incomming Message",`Received: ${data}`);
-
-      const messageData = JSON.parse(data);
-      if (messageData.to && clientMap.has(messageData.to)) {
-        const recipient = clientMap.get(messageData.to);
-        sendMessageToClient(recipient, JSON.stringify({ from: 'Server', message: messageData.message }));
-      } else if (messageData.type === "authenticate") {
-        authenticate(messageData.user, ws);
-      } else {
-        // Broadcast the message to all clients
-        broadcast(message);
-      }
+      Logger.log("Incoming Message", `Received: ${data}`);
+    handleMessage(ws, data);
     });
   
     const interval = setInterval(function ping() {
