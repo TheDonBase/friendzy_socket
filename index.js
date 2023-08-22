@@ -1,71 +1,80 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import generateUUID from './utils/generateUUID.js';
+import { registerConnection, deleteConnection } from './utils/api_client.js';
+import Logger from './utils/logger.js';
 
 
 function heartbeat() {
     this.isAlive = true;
 }
 
-function sendUserDateNotification(sender) {
-    const dataToSend = {
-        message: "Has sent you a new user date!",
-        sender: sender
-      };
-
-      clients.forEach((client) => {
-        // Check if the client connection is still open
-        if (client.connection.readyState === WebSocket.OPEN) {
-          client.connection.send(JSON.stringify(dataToSend));
-        }
-      });
-}
 
 const ws_port = 443;
+const api_url = 'https://croaztek.com/api/websocket_connections';
 const wss = new WebSocketServer({ port: ws_port });
-console.log("WebSocket Server starting on port: " + ws_port)
 
 const clients = [];
+const clientMap = new Map();
+
+const broadcast = (message) => {
+  clients.forEach((client) => {
+    if(client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+};
+
+const broadcastToClient = (client, message) => {
+  if(client.readyState === WebSocket.OPEN) {
+    client.send(message);
+  }
+};
+
+const addConnection = async (uuid, user) => {
+  const postData = {
+    "uuid": uuid,
+    "user": `/api/users/${user}`
+  }
+  const response = await registerConnection(api_url, postData);
+  Logger.log("Added Connection",`${response}`)
+}
+
+const removeConnection = async (uuid) => {
+  const postData = {
+    "uuid": uuid,
+  }
+  const response = await deleteConnection(`${api_url}/delete_by_uuid`, postData);
+  Logger.log("Deleted Connection", `${response}`)
+}
+
+const authenticate = (user, ws) => {
+  const uuid = generateUUID();
+  clientMap.set(uuid, { user, ws });
+  addConnection(uuid, user);
+  Logger.log("New Connection", `A new User: ${user} connected with UUID: ${uuid}`);
+}
 
 wss.on('connection', function connection(ws) {
+    clients.push(ws);
+    Logger.log("New Connection", `A new client connected anonymously`);
+
     ws.isAlive = true;
     ws.on('pong', heartbeat);
   
     ws.on('error', console.error);
   
     ws.on('message', function message(data) {
-      console.log(`received: ${data.toString()}`);
-  
-      // Parse the received JSON message
-      try {
-        const messageObject = JSON.parse(data);
-  
-        // Check if the "type" field is "authenticate"
-        if (messageObject.type === "authenticate") {
-          // Assuming the user's display name is stored in the "user" field
-          const user = messageObject.user.username;
-  
-          // Add the user to the client list
-          clients.push({ name: user, connection: ws });
-  
-          // Log that the user has been added
-          console.log(`User ${user} has been added to the client list.`);
-        } else if(messageObject.type === 'user_date_new') {
-          const friend = clients.find((client) => client.name === messageObject.friend);
-          const user = messageObject.user
-          if (friend) {
-            // Send a message to the user
-            const messageToSend = {
-              type: 'user_date_new',
-              message: `${user} has sent you a new userdate!`,
-            };
-            user.connection.send(JSON.stringify(messageToSend));
-            console.log(`Sent a message to ${messageObject.freidn}`);
-          } else {
-            console.log(`User ${messageObject.friend} not found in the client list.`);
-          }
-        }
-      } catch (error) {
-        // Handle JSON parsing errors
-        console.error(`Error parsing JSON: ${error}`);
+      Logger.log("Incomming Message",`Received: ${data}`);
+
+      const messageData = JSON.parse(data);
+      if (messageData.to && clientMap.has(messageData.to)) {
+        const recipient = clientMap.get(messageData.to);
+        sendMessageToClient(recipient, JSON.stringify({ from: 'Server', message: messageData.message }));
+      } else if (messageData.type === "authenticate") {
+        authenticate(messageData.user, ws);
+      } else {
+        // Broadcast the message to all clients
+        broadcast(message);
       }
     });
   
@@ -78,15 +87,29 @@ wss.on('connection', function connection(ws) {
       });
     }, 30000);
   
-    ws.on('close', function close() {
-      // Find the disconnected connection in the clients array and remove it
-      const index = clients.findIndex((client) => client.connection === ws);
-      if (index !== -1) {
-        const disconnectedClient = clients.splice(index, 1)[0];
-        console.log(`${disconnectedClient.name} disconnected.`);
-        clearInterval(interval);
+    ws.on('close', async function close() {
+      clients.splice(clients.indexOf(ws), 1); // Remove ws from clients
+
+      // Find the UUID associated with the closing WebSocket (ws)
+      let closedUuid = null;
+      clientMap.forEach((value, key) => {
+        if (value.ws === ws) {
+          closedUuid = key;
+        }
+      });
+
+      if (closedUuid !== null) {
+        clientMap.delete(closedUuid); // Delete using the found UUID
+        await removeConnection(closedUuid);
+        Logger.log("Client Disconnect", `A client with UUID ${closedUuid} disconnected.`);
+      } else {
+        Logger.log("Client Disconnect", `A client disconnected, but UUID was not found.`);
       }
+
+      clearInterval(interval);
     });
   
     ws.send("ping");
   });
+
+  Logger.log("Server Status" ,`WebSocket server is running on port ${ws_port}`);

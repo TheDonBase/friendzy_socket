@@ -5,7 +5,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "node index.js"
+    "test": "node index.js --watch"
   },
   "repository": {
     "type": "git",
@@ -21,6 +21,8 @@
   },
   "homepage": "https://github.com/TheDonBase/friendzy_socket#readme",
   "dependencies": {
+    "axios": "^1.4.0",
+    "uuid": "^9.0.0",
     "ws": "^8.13.0"
   }
 }
