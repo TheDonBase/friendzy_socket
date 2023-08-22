@@ -21,6 +21,7 @@ function sendUserDateNotification(sender) {
 
 const ws_port = 443;
 const wss = new WebSocketServer({ port: ws_port });
+console.log("WebSocket Server starting on port: " + ws_port)
 
 const clients = [];
 
@@ -40,13 +41,27 @@ wss.on('connection', function connection(ws) {
         // Check if the "type" field is "authenticate"
         if (messageObject.type === "authenticate") {
           // Assuming the user's display name is stored in the "user" field
-          const displayName = messageObject.user;
+          const user = messageObject.user.username;
   
           // Add the user to the client list
-          clients.push({ name: displayName, connection: ws });
+          clients.push({ name: user, connection: ws });
   
           // Log that the user has been added
-          console.log(`User ${displayName} has been added to the client list.`);
+          console.log(`User ${user} has been added to the client list.`);
+        } else if(messageObject.type === 'user_date_new') {
+          const friend = clients.find((client) => client.name === messageObject.friend);
+          const user = messageObject.user
+          if (friend) {
+            // Send a message to the user
+            const messageToSend = {
+              type: 'user_date_new',
+              message: `${user} has sent you a new userdate!`,
+            };
+            user.connection.send(JSON.stringify(messageToSend));
+            console.log(`Sent a message to ${messageObject.freidn}`);
+          } else {
+            console.log(`User ${messageObject.friend} not found in the client list.`);
+          }
         }
       } catch (error) {
         // Handle JSON parsing errors
@@ -73,5 +88,5 @@ wss.on('connection', function connection(ws) {
       }
     });
   
-    ws.send("Ping");
+    ws.send("ping");
   });
