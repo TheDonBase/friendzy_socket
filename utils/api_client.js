@@ -28,4 +28,12 @@ async function deleteConnection(url, data) {
     }
 }
 
+async function getDeviceUUID(url, data) {
+    try {
+        
+    } catch (error) {
+
+    }
+}
+
 export { registerConnection, deleteConnection };
