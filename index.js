@@ -1,6 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import generateUUID from './utils/generateUUID.js';
-import { registerConnection, deleteConnection } from './utils/api_client.js';
+import { registerConnection, deleteConnection, getDeviceUUID } from './utils/api_client.js';
 import Logger from './utils/logger.js';
 
 
@@ -40,6 +39,20 @@ const addConnection = async (uuid, user) => {
   Logger.log("Added Connection",`${response}`)
 }
 
+// Function to add a client to the clientMap
+function addClient(uuid, connection) {
+    clientMap.set(uuid, { uuid, connection });
+}
+
+// Function to remove a client from the clientMap
+function removeClient(uuid) {
+    clientMap.delete(uuid);
+}
+// Function to get a client from the clientMap
+function getClient(uuid) {
+  return clientMap.get(uuid);
+}
+
 const removeConnection = async (uuid) => {
   const postData = {
     "uuid": uuid,
@@ -48,11 +61,22 @@ const removeConnection = async (uuid) => {
   Logger.log("Deleted Connection", `${response}`)
 }
 
-const authenticate = async (token, ws) => {
-  const uuid = await getUuid(jwtToken);
-  clientMap.set(uuid, { device, ws });
-  addConnection(uuid, device);
-  Logger.log("New Connection", `A new User: ${device} connected with UUID: ${uuid}`);
+const getUuid = async (token, user) => {
+  Logger.log("getUuid", "Sending get request.");
+  const response = await getDeviceUUID(`https://croaztek.com/api/device_infos?User=${user}`, token);
+  return response;
+}
+
+const authenticate = async (token, user, ws) => {
+  try {
+    Logger.log("Authenticating", "Attempting to get UUID");
+    const device = await getUuid(token, user);
+    addClient(device, ws);
+    addConnection(device, user);
+    Logger.log("New Connection", `A new User: ${user} connected with UUID: ${device}`);
+  } catch (error) {
+    Logger.error("authenticate Error", error);
+  }
 }
 
 function getUser(user) {
@@ -77,7 +101,7 @@ async function handleMessage(ws, data) {
       await sendMessageToClient(recipient, JSON.stringify({ from: 'Server', message: messageData.message }));
   } else if (messageData.type === "authenticate") {
       // Handle authentication messages
-      await authenticate(messageData.jwtToken, ws);
+      await authenticate(messageData.jwtToken, messageData.user, ws);
   } else if(messageData.type === "user_date_new") {
     if(messageData.user !== null || messageData.friend !== null) {
       const user = messageData.user;
@@ -128,19 +152,22 @@ wss.on('connection', function connection(ws) {
       // Find the UUID associated with the closing WebSocket (ws)
       let closedUuid = null;
       clientMap.forEach((value, key) => {
-        if (value.ws === ws) {
-          closedUuid = key;
+        if (value.connection === ws) {
+            closedUuid = key;
         }
-      });
+    });
 
       if (closedUuid !== null) {
-        clientMap.delete(closedUuid); // Delete using the found UUID
+        // Remove the client (UUID and WebSocket connection) from the clientMap
+        clientMap.delete(closedUuid);
+
+        // Perform any additional cleanup if needed
         await removeConnection(closedUuid);
+
         Logger.log("Client Disconnect", `A client with UUID ${closedUuid} disconnected.`);
       } else {
-        Logger.log("Client Disconnect", `A client disconnected, but UUID was not found.`);
+            Logger.log("Client Disconnect", `A client disconnected, but UUID was not found.`);
       }
-
       clearInterval(interval);
     });
   
