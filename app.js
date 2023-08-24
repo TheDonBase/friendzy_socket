@@ -9,7 +9,7 @@ function heartbeat() {
 
 
 const api_url = 'https://croaztek.com/api/websocket_connections';
-const wss = new WebSocketServer({});
+const wss = new WebSocketServer({ port: 8081 });
 
 const clients = [];
 const clientMap = new Map();
