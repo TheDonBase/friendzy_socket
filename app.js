@@ -116,7 +116,18 @@ async function handleMessage(ws, data) {
       await broadcastToClient(checkUser, encodedData);
     }
   } else if(messageData.type === "friendship_add_new") {
-    
+    if(messageData.user !== null || messageData.friend !== null) {
+      const user = messageData.user;
+      const friend = messageData.friend
+      const checkUser = await getUser(friend);
+      const jsonData = {
+        "notification_type": "friendship_add_new",
+        "sender": user,
+        "message": "Has Added you!"
+      };
+      const encodedData = JSON.stringify(jsonData);
+      await broadcastToClient(checkUser, encodedData);
+    }
   } else {
       // Handle other message types (e.g., broadcasting)
       broadcast(data);

@@ -2,10 +2,10 @@
   "name": "friendzy_socket",
   "version": "1.0.0",
   "description": "Websocket server for friendzy",
-  "main": "index.js",
+  "main": "app.js",
   "type": "module",
   "scripts": {
-    "test": "node index.js --watch"
+    "test": "node app.js --watch"
   },
   "repository": {
     "type": "git",
