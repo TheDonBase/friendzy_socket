@@ -8,7 +8,7 @@ function heartbeat() {
 }
 
 
-const ws_port = 443;
+const ws_port = 8080;
 const api_url = 'https://croaztek.com/api/websocket_connections';
 const wss = new WebSocketServer({ port: ws_port });
 
