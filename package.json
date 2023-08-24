@@ -22,6 +22,8 @@
   "homepage": "https://github.com/TheDonBase/friendzy_socket#readme",
   "dependencies": {
     "axios": "^1.4.0",
+    "dotenv": "^16.3.1",
+    "socket.io": "^4.7.2",
     "uuid": "^9.0.0",
     "ws": "^8.13.0"
   }
