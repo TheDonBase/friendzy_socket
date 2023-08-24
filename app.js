@@ -8,9 +8,8 @@ function heartbeat() {
 }
 
 
-const ws_port = 8080;
 const api_url = 'https://croaztek.com/api/websocket_connections';
-const wss = new WebSocketServer({ port: ws_port });
+const wss = new WebSocketServer({});
 
 const clients = [];
 const clientMap = new Map();
@@ -185,4 +184,14 @@ wss.on('connection', function connection(ws) {
     ws.send("ping");
   });
 
-  Logger.log("Server Status" ,`WebSocket server is running on port ${ws_port}`);
+  wss.on('listening', () => {
+    const serverAddress = wss._server.address();
+    if (serverAddress) {
+        const { address, port } = serverAddress;
+        Logger.log("Server Status", `WebSocket server is running on IP address ${address}, port ${port}`);
+    } else {
+        Logger.log("Server Status", "WebSocket server is running, but IP address and port information is not available.");
+    }
+});
+
+Logger.log("Server Status", "WebSocket server is starting...");
